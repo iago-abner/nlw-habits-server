@@ -70,4 +70,58 @@ export async function appRoutes(app: FastifyInstance) {
       completedHabits,
     };
   });
+
+  app.patch("/habits/:id/toggle", async (req) => {
+    const toggleHabitParams = z.object({
+      id: z.string().uuid()
+    })
+
+    const { id } = toggleHabitParams.parse(req.params)
+
+    const today = dayjs().startOf('day').toDate()
+
+    //procurando no db o dia igual
+    let day = await prisma.day.findUnique({
+      where: {
+        date: today
+      }
+    })
+
+    //caso não existe, cria no db
+    if (!day) {
+      day = await prisma.day.create({
+        data: {
+          date: today,
+        }
+      })
+    }
+
+    //encontrar na tabela 'dayHabit' pela relação do dayId e habitId
+    const dayHabit = await prisma.dayHabit.findUnique({
+      where: {
+        day_id_habit_id: {
+          day_id: day.id,
+          habit_id: id,
+        }
+      }
+    })
+
+    //Se já tinha marcado como completo
+    if (dayHabit) {
+      //remover a marcação de completo
+      await prisma.dayHabit.delete({
+        where: {
+          id: dayHabit.id
+        }
+      })
+    } else {
+      //completar o hábito
+      await prisma.dayHabit.create({
+        data: {
+          day_id: day.id,
+          habit_id: id,
+        }
+      })
+    }
+  })
 }
